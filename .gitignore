@@ -1,0 +1,25 @@
+### IntelliJ IDEA ###
+/.idea/
+*.iws
+*.iml
+*.ipr
+
+### Eclipse ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### VS Code ###
+.vscode/
+
+### Mac OS ###
+.DS_Store
+
+/logs/
+/database/*.trace.db
+# 在子工程目录下运行 mvn 时，相对路径会在子工程产生 H2 临时数据库，忽略掉
+/deploy-server/database/
