@@ -10,6 +10,7 @@ import com.xiaozhanke.deploy.exception.BusinessException;
 import com.xiaozhanke.deploy.model.dto.ServerRecordDto;
 import com.xiaozhanke.deploy.model.dto.SshExecResult;
 import com.xiaozhanke.deploy.model.request.ServerParams;
+import com.xiaozhanke.deploy.util.PathSafetyUtils;
 import com.jcraft.jsch.Channel;
 import com.jcraft.jsch.ChannelExec;
 import com.jcraft.jsch.ChannelSftp;
@@ -374,14 +375,13 @@ public class SshService {
     public void uploadFile(String sessionId, String localPath, String remoteDir) {
         File localFile = validateLocalFile(localPath);
         String originalFilename = localFile.getName();
-        if (!StringUtils.hasText(originalFilename)) {
-            throw new BusinessException("无法获取上传文件名");
-        }
+        PathSafetyUtils.assertSafeFileName(originalFilename);
+        PathSafetyUtils.assertNoTraversalSegments(remoteDir);
 
-        String operationDesc = String.format("上传文件 '%s' -> '%s'", localPath, remoteDir + "/" + originalFilename);
+        String operationDesc = String.format("上传文件 '%s' -> '%s'", localPath, PathSafetyUtils.safeJoin(remoteDir, originalFilename));
         executeSftpOperation(sessionId, operationDesc, channel -> {
             String targetDir = prepareRemoteDirectory(channel, remoteDir);
-            String remoteFilePath = targetDir + "/" + originalFilename;
+            String remoteFilePath = PathSafetyUtils.safeJoin(targetDir, originalFilename);
 
             try (InputStream in = new FileInputStream(localFile)) {
                 channel.put(in, remoteFilePath,
@@ -403,14 +403,13 @@ public class SshService {
             throw new BusinessException("上传文件不能为空");
         }
         String originalFilename = file.getOriginalFilename();
-        if (!StringUtils.hasText(originalFilename)) {
-            throw new BusinessException("无法获取上传文件名");
-        }
+        PathSafetyUtils.assertSafeFileName(originalFilename);
+        PathSafetyUtils.assertNoTraversalSegments(remoteDir);
 
-        String operationDesc = String.format("上传文件 '%s' -> '%s'", originalFilename, remoteDir + "/" + originalFilename);
+        String operationDesc = String.format("上传文件 '%s' -> '%s'", originalFilename, PathSafetyUtils.safeJoin(remoteDir, originalFilename));
         executeSftpOperation(sessionId, operationDesc, channel -> {
             String targetDir = prepareRemoteDirectory(channel, remoteDir);
-            String remoteFilePath = targetDir + "/" + originalFilename;
+            String remoteFilePath = PathSafetyUtils.safeJoin(targetDir, originalFilename);
 
             try (InputStream in = file.getInputStream()) {
                 channel.put(in, remoteFilePath, new WebSocketSftpProgressMonitor(sessionId, file.getSize(), messagingTemplate, FileOperationEnum.UPLOAD), ChannelSftp.OVERWRITE);
@@ -1037,6 +1036,9 @@ public class SshService {
      * @throws SftpException 其他 SFTP 异常
      */
     private String prepareRemoteDirectory(ChannelSftp channel, String remoteDir) throws SftpException {
+        // 先校验整条路径不含 .. 段，否则按段 mkdir 时会被 SFTP 服务端解析跳出目标目录
+        PathSafetyUtils.assertNoTraversalSegments(remoteDir);
+
         // 确保 remoteDir 不以 / 结尾
         String targetDir = remoteDir.endsWith("/") ? remoteDir.substring(0, remoteDir.length() - 1) : remoteDir;
 
