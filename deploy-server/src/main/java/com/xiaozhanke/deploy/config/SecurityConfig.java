@@ -1,9 +1,9 @@
 package com.xiaozhanke.deploy.config;
 
 import com.xiaozhanke.deploy.security.token.JwtToSecurityUserConverter;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -46,14 +46,19 @@ import java.util.function.Function;
  */
 @Configuration
 @EnableWebSecurity
+@EnableConfigurationProperties(CorsProperties.class)
 public class SecurityConfig {
 
     private final AuthenticationEntryPoint authenticationEntryPoint;
     private final AccessDeniedHandler accessDeniedHandler;
+    private final CorsProperties corsProperties;
 
-    public SecurityConfig(AuthenticationEntryPoint authenticationEntryPoint, AccessDeniedHandler accessDeniedHandler) {
+    public SecurityConfig(AuthenticationEntryPoint authenticationEntryPoint,
+                          AccessDeniedHandler accessDeniedHandler,
+                          CorsProperties corsProperties) {
         this.authenticationEntryPoint = authenticationEntryPoint;
         this.accessDeniedHandler = accessDeniedHandler;
+        this.corsProperties = corsProperties;
     }
 
     /**
@@ -246,14 +251,17 @@ public class SecurityConfig {
     }
 
     /**
-     * 配置 CORS 规则，仅在开发环境装载
+     * 配置 CORS 规则。
+     *
+     * <p>允许的 Origin 列表完全由 {@code app.security.cors.allowed-origins} 驱动，
+     * 不再绑死开发 profile —— 任意环境（dev/staging/pro）都通过同一配置 key 决定放行哪些前端域名。
+     * pro 默认空集合，即生产侧若同域部署可保持默认；如需放行外部前端，请在对应 profile 显式列出。
      */
     @Bean
-    @Profile("dev")
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // 允许的源
-        configuration.setAllowedOrigins(Collections.singletonList("https://localhost:5173"));
+        // 允许的源（空列表代表禁止跨域）
+        configuration.setAllowedOrigins(corsProperties.allowedOrigins());
         // 允许的方法
         configuration.setAllowedMethods(Collections.singletonList("*"));
         // 允许的头部
