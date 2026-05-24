@@ -188,8 +188,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/login", "/api/auth/logout").permitAll()
                         // 仅管理员可访问 actuator
                         .requestMatchers("/actuator/**").hasRole("ADMIN")
-                        // WebSocket 允许所有用户访问
-                        .requestMatchers("/websocket/**").permitAll()
+                        // WebSocket 端点收紧到需认证。STOMP CONNECT 时再走 ChannelInterceptor 二次校验 Bearer Token。
+                        .requestMatchers("/websocket/**").authenticated()
                         .anyRequest().authenticated())
                 // 禁用 Http Basic 认证
                 .httpBasic(AbstractHttpConfigurer::disable)

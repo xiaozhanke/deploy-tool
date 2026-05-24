@@ -3,6 +3,7 @@ package com.xiaozhanke.deploy.config;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
@@ -37,15 +38,18 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
  */
 @Configuration
 @EnableWebSocketMessageBroker
+@EnableConfigurationProperties(CorsProperties.class)
 @Order(Ordered.HIGHEST_PRECEDENCE + 99)
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final JwtAuthenticationProvider jwtAuthenticationProvider;
+    private final CorsProperties corsProperties;
 
     private static final Pattern AUTHORIZATION_PATTERN = Pattern.compile("^Bearer (?<token>[a-zA-Z0-9-._~+/]+=*)$", Pattern.CASE_INSENSITIVE);
 
-    public WebSocketConfig(JwtDecoder jwtDecoder) {
+    public WebSocketConfig(JwtDecoder jwtDecoder, CorsProperties corsProperties) {
         this.jwtAuthenticationProvider = new JwtAuthenticationProvider(jwtDecoder);
+        this.corsProperties = corsProperties;
     }
 
     /**
@@ -64,15 +68,18 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     }
 
     /**
-     * 注册 STOMP 端点，使客户端可以通过 WebSocket 连接
+     * 注册 STOMP 端点，使客户端可以通过 WebSocket 连接。
+     *
+     * <p>Origin 列表从 {@code app.security.cors.allowed-origins} 注入；空列表等价于禁止跨域握手，
+     * 仅允许同源连接，避免之前 {@code setAllowedOrigins("*")} 把端点暴露给任意页面。
      *
      * @param registry STOMP 端点注册对象，定义 WebSocket 连接的入口地址和跨域设置
      */
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        List<String> origins = corsProperties.allowedOrigins();
         registry.addEndpoint("/websocket")
-                // 允许所有跨域访问
-                .setAllowedOrigins("*");
+                .setAllowedOrigins(origins.toArray(String[]::new));
     }
 
     /**

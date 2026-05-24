@@ -36,6 +36,10 @@ app:
       key-file: ./database/jwt-key.json
       key-id: deploy-jwt-key
       auto-create-on-missing: false
+    cors:
+      # 允许的跨域 Origin 列表。空列表（默认）表示仅同源访问，作用于 WebSocket 握手与 HTTP CORS 预检。
+      # dev / staging 环境按需在对应 profile 配置文件追加，生产侧若同域部署可保持默认。
+      allowed-origins: []
 springdoc:
   swagger-ui:
     # 分组排序

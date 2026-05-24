@@ -13,6 +13,10 @@ app:
     jwt:
       # 开发环境允许首次启动自动生成 JWT 密钥文件，方便本地调试
       auto-create-on-missing: true
+    cors:
+      # Vite 开发服务器默认地址；新增本地端口在此追加
+      allowed-origins:
+        - https://localhost:5173
 spring:
   datasource:
     driver-class-name: org.h2.Driver
