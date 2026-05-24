@@ -44,7 +44,9 @@ public class SecurityUserService implements UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        PlatformUser user = platformUserRepository.findByUsername(username).orElseThrow(() -> new UsernameNotFoundException(String.format("用户 [%s] 未找到", username)));
+        // 必须用 findWithRolesByUsername：roles 改 LAZY 后，open-in-view=false 下脱离事务访问会抛 LazyInitializationException
+        PlatformUser user = platformUserRepository.findWithRolesByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException(String.format("用户 [%s] 未找到", username)));
 
         Set<GrantedAuthority> authorities = user.getRoles().stream().map(role -> new SimpleGrantedAuthority("ROLE_" + role.getName())).collect(Collectors.toSet());
 

@@ -14,6 +14,7 @@ import com.xiaozhanke.deploy.model.vo.PlatformUserVo;
 import com.xiaozhanke.deploy.repository.PlatformRoleRepository;
 import com.xiaozhanke.deploy.repository.PlatformUserRepository;
 import com.xiaozhanke.deploy.util.AuthenticationHelper;
+import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -109,7 +110,7 @@ public class PlatformUserService {
      * @return 用户信息
      */
     public PlatformUserVo queryUserByUsername(String username) {
-        return userRepository.findByUsername(username)
+        return userRepository.findWithRolesByUsername(username)
                 .map(userPoVoMapper::poToVo)
                 .orElseThrow(() -> new ResourceNotFoundException(String.format("用户 [%s] 不存在", username)));
     }
@@ -153,13 +154,13 @@ public class PlatformUserService {
     }
 
     /**
-     * 获取用户 PO
+     * 获取用户 PO（含 roles）
      *
      * @param id 用户 Id
      * @return 用户 PO
      */
     private PlatformUser getUser(String id) {
-        return userRepository.findById(id)
+        return userRepository.findWithRolesById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(String.format("用户 [%s] 不存在", id)));
     }
 
@@ -189,6 +190,12 @@ public class PlatformUserService {
     private Specification<PlatformUser> buildSpecification(PlatformUserVo params) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicateList = new ArrayList<>();
+
+            // 列表场景 mapper 要把 roles 一起转 VO，count 查询排除 fetch（Hibernate 不允许在 count 上 fetch）
+            if (query != null && query.getResultType() != Long.class && query.getResultType() != long.class) {
+                root.fetch("roles", JoinType.LEFT);
+                query.distinct(true);
+            }
 
             if (StringUtils.hasText(params.getId())) {
                 predicateList.add(criteriaBuilder.equal(root.get("id"), params.getId()));

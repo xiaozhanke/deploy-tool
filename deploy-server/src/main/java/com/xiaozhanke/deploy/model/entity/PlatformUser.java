@@ -124,7 +124,7 @@ public class PlatformUser extends BasePo {
     @Column
     private int failedLoginCount;
 
-    @ManyToMany(fetch = FetchType.EAGER, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(
             name = "platform_user_role",
             joinColumns = @JoinColumn(name = "platform_user_id"),
