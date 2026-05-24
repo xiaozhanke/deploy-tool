@@ -1,0 +1,45 @@
+server:
+  port: 6060
+  ssl:
+    enabled: true
+    key-store: classpath:keystore.p12
+    key-store-type: PKCS12
+    key-alias: deploy
+    key-store-password: changeit
+  forward-headers-strategy: framework
+logging:
+  file:
+    name: ./logs/${spring.application.name}.log
+  pattern:
+    dateformat: yyyy-MM-dd HH:mm:ss
+  logback:
+    rollingpolicy:
+      file-name-pattern: ${LOG_FILE}-%d{yyyy-MM-dd}.%i.log
+  include-application-name: false
+spring:
+  application:
+    name: deploy-server
+    version: 1.2.4
+  profiles:
+    active: @spring.profiles.active@
+  servlet:
+    multipart:
+      max-file-size: 1024MB
+      max-request-size: 1024MB
+  web:
+    locale: zh_CN
+springdoc:
+  swagger-ui:
+    # 分组排序
+    groups-order: desc
+    # 标签排序
+    tags-sorter: alpha
+    # 操作排序
+    operations-sorter: method
+    persistAuthorization: true
+  # 属性排序
+  writer-with-order-by-keys: true
+  cache:
+    disabled: true
+  show-actuator: true
+  default-produces-media-type: application/json

@@ -1,0 +1,45 @@
+logging:
+  level:
+    root: info
+  logback:
+    rollingpolicy:
+      max-history: 30
+spring:
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:file:./database/deploy
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    open-in-view: false
+  h2:
+    console:
+      enabled: false
+  security:
+    oauth2:
+      authorizationserver:
+        client:
+          oidc-client:
+            registration:
+              client-id: "oidc-client"
+              client-authentication-methods:
+                - "none"
+              authorization-grant-types:
+                - "authorization_code"
+                - "refresh_token"
+              redirect-uris:
+                - "/ui/login/callback"
+              post-logout-redirect-uris:
+                - "/ui/login"
+              scopes:
+                - "openid"
+                - "profile"
+            require-authorization-consent: false
+            require-proof-key: true
+            token:
+              access-token-time-to-live: 10m
+              refresh-token-time-to-live: 4h
+              reuse-refresh-tokens: false

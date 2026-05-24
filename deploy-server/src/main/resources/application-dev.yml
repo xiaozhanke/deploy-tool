@@ -1,0 +1,53 @@
+logging:
+  level:
+    root: info
+    web: debug
+    sql: debug
+    org.springframework.security: trace
+    com.xiaozhanke.deploy: debug
+  logback:
+    rollingpolicy:
+      max-history: 7
+spring:
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:file:./database/deploy
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    open-in-view: false
+    defer-datasource-initialization: true
+  freemarker:
+    template-loader-path: classpath:/templates/
+  h2:
+    console:
+      enabled: false
+# 数据库初始化
+#  sql:
+#    init:
+#      mode: always
+#      data-locations: classpath:/sql/data.sql
+  security:
+    oauth2:
+      authorizationserver:
+        client:
+          oidc-client:
+            registration:
+              client-id: "oidc-client"
+              client-authentication-methods:
+                - "none"
+              authorization-grant-types:
+                - "authorization_code"
+                - "refresh_token"
+              redirect-uris:
+                - "https://localhost:5173/ui/login/callback"
+              post-logout-redirect-uris:
+                - "https://localhost:5173/ui/login"
+              scopes:
+                - "openid"
+                - "profile"
+            require-authorization-consent: false
+            require-proof-key: true
