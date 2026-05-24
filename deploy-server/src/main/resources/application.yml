@@ -28,6 +28,14 @@ spring:
       max-request-size: 1024MB
   web:
     locale: zh_CN
+app:
+  security:
+    jwt:
+      # JWT 签名密钥（JWK JSON）持久化文件路径，跨进程重启稳定，避免重启踢出已登录用户。
+      # 生产环境请预先生成并以受限权限部署；dev profile 默认允许自动生成。
+      key-file: ./database/jwt-key.json
+      key-id: deploy-jwt-key
+      auto-create-on-missing: false
 springdoc:
   swagger-ui:
     # 分组排序

@@ -8,6 +8,11 @@ logging:
   logback:
     rollingpolicy:
       max-history: 7
+app:
+  security:
+    jwt:
+      # 开发环境允许首次启动自动生成 JWT 密钥文件，方便本地调试
+      auto-create-on-missing: true
 spring:
   datasource:
     driver-class-name: org.h2.Driver

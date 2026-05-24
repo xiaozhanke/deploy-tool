@@ -1,20 +1,26 @@
 package com.xiaozhanke.deploy.security.config;
 
-import com.xiaozhanke.deploy.security.user.SecurityUser;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
+import com.xiaozhanke.deploy.security.user.SecurityUser;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Collections;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.core.Authentication;
@@ -34,7 +40,11 @@ import org.springframework.security.oauth2.server.authorization.token.OAuth2Toke
  */
 @Slf4j
 @Configuration
+@EnableConfigurationProperties(JwtKeyStoreProperties.class)
+@RequiredArgsConstructor
 public class JwtConfig {
+
+    private final JwtKeyStoreProperties properties;
 
     /**
      * 生成 JWKSource，提供 RSA 密钥用于 JWT 令牌的签名和验证
@@ -43,13 +53,7 @@ public class JwtConfig {
      */
     @Bean
     public JWKSource<SecurityContext> jwkSource() {
-        KeyPair keyPair = generateRsaKey();
-        RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
-        RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
-        RSAKey rsaKey = new RSAKey.Builder(publicKey)
-                .privateKey(privateKey)
-                .keyID(UUID.randomUUID().toString())
-                .build();
+        RSAKey rsaKey = loadOrCreateRsaKey();
         JWKSet jwkSet = new JWKSet(rsaKey);
         return new ImmutableJWKSet<>(jwkSet);
     }
@@ -66,21 +70,61 @@ public class JwtConfig {
     }
 
     /**
-     * 生成 RSA 密钥对，用于 JWT 令牌签名与验证
-     *
-     * @return 生成的密钥对
+     * 优先从配置文件路径加载已持久化的 RSA 密钥；不存在时根据 autoCreateOnMissing 选项决定是否新建并落盘
      */
-    private static KeyPair generateRsaKey() {
-        KeyPair keyPair;
+    private RSAKey loadOrCreateRsaKey() {
+        Path keyPath = Paths.get(properties.keyFile()).toAbsolutePath();
+
+        if (Files.exists(keyPath)) {
+            try {
+                String json = Files.readString(keyPath);
+                RSAKey loaded = RSAKey.parse(json);
+                if (loaded.toPrivateKey() == null) {
+                    throw new IllegalStateException("JWK 文件缺少私钥: " + keyPath);
+                }
+                log.info("已加载 JWT 签名密钥: {} (kid={})", keyPath, loaded.getKeyID());
+                return loaded;
+            } catch (Exception e) {
+                throw new IllegalStateException("解析 JWT 密钥文件失败: " + keyPath, e);
+            }
+        }
+
+        if (!properties.autoCreateOnMissing()) {
+            throw new IllegalStateException(
+                    "JWT 密钥文件不存在: " + keyPath
+                            + "（生产环境请预先生成；如允许自动生成请将 app.security.jwt.auto-create-on-missing 置为 true）");
+        }
+
+        RSAKey generated = generateNewRsaKey();
+        try {
+            Path parent = keyPath.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            Files.writeString(keyPath, generated.toJSONString(),
+                    StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+            log.warn("JWT 密钥文件不存在，已自动生成并保存: {} (kid={})", keyPath, generated.getKeyID());
+        } catch (IOException e) {
+            throw new IllegalStateException("写入 JWT 密钥文件失败: " + keyPath, e);
+        }
+        return generated;
+    }
+
+    /**
+     * 生成新的 2048 位 RSA 密钥对，并使用配置 keyId 标识
+     */
+    private RSAKey generateNewRsaKey() {
         try {
             KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-            // 设置密钥长度为 2048 位
             keyPairGenerator.initialize(2048);
-            keyPair = keyPairGenerator.generateKeyPair();
+            KeyPair keyPair = keyPairGenerator.generateKeyPair();
+            return new RSAKey.Builder((RSAPublicKey) keyPair.getPublic())
+                    .privateKey((RSAPrivateKey) keyPair.getPrivate())
+                    .keyID(properties.keyId())
+                    .build();
         } catch (Exception e) {
             throw new IllegalStateException("RSA 密钥生成失败", e);
         }
-        return keyPair;
     }
 
     /**
