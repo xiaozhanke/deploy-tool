@@ -146,9 +146,10 @@ public class SshService {
             Session session = sessions.remove(sessionId);
             if (session != null) {
                 log.info("开始关闭 SSH 连接会话 [{}]", sessionId);
-                // 收集此会话的通道键以避免 ConcurrentModificationException
+                // 先把 keySet 拷贝到 ArrayList 做快照——ConcurrentHashMap 的 keySet 视图弱一致，
+                // 边遍历边 channels.remove 可能漏掉新插入的条目，快照后处理可避免
                 List<ChannelKey> keysToRemove = new ArrayList<>();
-                channels.keySet().forEach(key -> {
+                new ArrayList<>(channels.keySet()).forEach(key -> {
                     if (key.sessionId.equals(sessionId)) {
                         keysToRemove.add(key);
                     }
@@ -603,21 +604,28 @@ public class SshService {
     }
 
     /**
-     * 获取给定 Id 的 Session 对象, 如果未找到或未连接则抛出异常
+     * 获取给定 Id 的 Session 对象, 如果未找到或未连接则抛出异常。
+     *
+     * <p>"获取 + 失效就移除"必须原子化：之前两步分离时，两个线程可能同时观察到 disconnected
+     * 然后各自尝试 sessions.remove，仅一次 disconnect/cleanup，另一次直接看到 null 也按已断开处理，
+     * 但中间窗口内 channel 仍可能被新请求拿到去使用已死会话。这里用 sessionLock 同步整个判断 + 移除。
      */
     private Session getSession(String sessionId) {
-        Session session = sessions.get(sessionId);
-        if (session == null) {
-            String errorMessage = String.format("会话 [%s] 不存在", sessionId);
-            throw new BusinessException(errorMessage);
+        sessionLock.lock();
+        try {
+            Session session = sessions.get(sessionId);
+            if (session == null) {
+                throw new BusinessException(String.format("会话 [%s] 不存在", sessionId));
+            }
+            if (!session.isConnected()) {
+                // 同步窗口内移除过期会话，避免两个线程都尝试清理或并发写入
+                sessions.remove(sessionId);
+                throw new BusinessException(String.format("会话 [%s] 连接未建立或已断开", sessionId));
+            }
+            return session;
+        } finally {
+            sessionLock.unlock();
         }
-        if (!session.isConnected()) {
-            // 移除可能过期的会话条目
-            sessions.remove(sessionId);
-            String errorMessage = String.format("会话 [%s] 连接未建立或已断开", sessionId);
-            throw new BusinessException(errorMessage);
-        }
-        return session;
     }
 
     /**
