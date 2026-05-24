@@ -126,10 +126,13 @@ instance.interceptors.response.use(
           errorInfo.message = backendMessage || '请求参数错误'
           break
         case 401:
-          // 401 Unauthorized 是一个特殊情况，需要进行强制登出操作
+          // 401 触发 session 失效流程后，仍走标准 reject 让调用方的 .catch 与 finally 执行完毕；
+          // 之前用 new Promise(() => {}) 永不结算阻塞了外部组件自己的 loading 计数器。
+          // sessionAbortController 已经在 handleSessionExpired 内取消了后续请求。
+          errorInfo.title = `登录失效 (${backendStatus || 'UNAUTHENTICATED'})`
+          errorInfo.message = backendMessage || '登录状态已失效，请重新登录'
           await useAuthStore().handleSessionExpired()
-          // 中断 Promise 链，防止业务代码的 catch 继续执行
-          return new Promise(() => {})
+          return Promise.reject(new ApiError(errorInfo.code, errorInfo.status, errorInfo.message))
         case 403:
           errorInfo.title = `禁止访问 (${backendStatus || 'PERMISSION_DENIED'})`
           errorInfo.message = backendMessage || '您没有权限执行此操作'

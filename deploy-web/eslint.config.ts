@@ -14,7 +14,16 @@ export default defineConfigWithVueTs(
     files: ['**/*.{ts,mts,tsx,vue}'],
   },
 
-  globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**']),
+  globalIgnores([
+    '**/dist/**',
+    '**/dist-ssr/**',
+    '**/coverage/**',
+    // 测试文件由 vitest 单独运行，未挂在 tsconfig.json 的 references 中，避免阻塞主工程 type-check；
+    // 这里同步告诉 ESLint 跳过这批文件，否则 typed lint 找不到对应 project 服务会报错
+    'src/__tests__/**',
+    'src/**/*.spec.ts',
+    'src/**/*.test.ts',
+  ]),
 
   pluginVue.configs['flat/recommended'],
   vueTsConfigs.recommendedTypeChecked,
