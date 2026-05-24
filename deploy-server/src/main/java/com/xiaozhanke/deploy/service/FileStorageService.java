@@ -74,23 +74,22 @@ public class FileStorageService {
     @Transactional
     public FileRecordVo storeFile(MultipartFile file, FileParams fileParams) {
         String originalFilename = file.getOriginalFilename();
-        if (!StringUtils.hasText(originalFilename)) {
-            throw new InvalidOperationException("文件名不能为空");
-        }
+        String fileName = sanitizeUploadedFileName(originalFilename);
         try {
-            // 保存文件
-            String fileName = StringUtils.cleanPath(originalFilename);
             String relativePath = buildRelativePath(fileParams);
             Path targetDir = getTargetDir(relativePath);
             Files.createDirectories(targetDir);
-            Path target = targetDir.resolve(fileName);
+            Path target = targetDir.resolve(fileName).normalize();
+            if (!target.startsWith(targetDir)) {
+                throw new InvalidOperationException(String.format("非法文件名: %s", originalFilename));
+            }
             try (InputStream inputStream = file.getInputStream()) {
                 Files.copy(inputStream, target, StandardCopyOption.REPLACE_EXISTING);
             }
             // 保存文件记录
             FileRecord fileRecord = new FileRecord();
             BeanUtils.copyProperties(fileParams, fileRecord);
-            fileRecord.setFileName(originalFilename);
+            fileRecord.setFileName(fileName);
             fileRecord.setFileSize(file.getSize());
             fileRecord.setContentType(file.getContentType());
             fileRecord.setRelativePath(relativePath);
@@ -235,20 +234,19 @@ public class FileStorageService {
     public FileRecordVo updateRaw(String fileId, MultipartFile file) {
         FileRecord fileRecord = getFileRecord(fileId);
         String originalFilename = file.getOriginalFilename();
-        if (!StringUtils.hasText(originalFilename)) {
-            throw new InvalidOperationException("文件名不能为空");
-        }
+        String fileName = sanitizeUploadedFileName(originalFilename);
         try {
-            // 保存文件
-            String fileName = StringUtils.cleanPath(originalFilename);
             String relativePath = fileRecord.getRelativePath();
             Path targetDir = getTargetDir(relativePath);
             Files.createDirectories(targetDir);
-            Path target = targetDir.resolve(fileName);
+            Path target = targetDir.resolve(fileName).normalize();
+            if (!target.startsWith(targetDir)) {
+                throw new InvalidOperationException(String.format("非法文件名: %s", originalFilename));
+            }
             try (InputStream inputStream = file.getInputStream()) {
                 Files.copy(inputStream, target, StandardCopyOption.REPLACE_EXISTING);
             }
-            fileRecord.setFileName(originalFilename);
+            fileRecord.setFileName(fileName);
             fileRecord.setFileSize(file.getSize());
             fileRecord.setContentType(file.getContentType());
         } catch (IOException e) {
@@ -298,6 +296,34 @@ public class FileStorageService {
             pathBuilder.append(version).append("/");
         }
         return pathBuilder.toString();
+    }
+
+    /**
+     * 校验并提取干净的上传文件名。
+     *
+     * <p>浏览器在不同 OS / 实现下可能把整条本地路径塞进 {@code originalFilename}（典型如老版 IE）。
+     * 先 {@link StringUtils#cleanPath} 规范化 {@code ..}，再 {@link StringUtils#getFilename}
+     * 剥离任何残留的目录前缀，最后兜底拒绝仍含 {@code ..}、{@code /}、{@code \\} 或控制字符的输入。
+     *
+     * @param originalFilename 浏览器提交的原始文件名
+     * @return 仅包含纯文件名部分的安全名称
+     */
+    static String sanitizeUploadedFileName(String originalFilename) {
+        if (!StringUtils.hasText(originalFilename)) {
+            throw new InvalidOperationException("文件名不能为空");
+        }
+        String cleaned = StringUtils.cleanPath(originalFilename);
+        String fileName = StringUtils.getFilename(cleaned);
+        if (!StringUtils.hasText(fileName)
+                || fileName.contains("..")
+                || fileName.indexOf('/') >= 0
+                || fileName.indexOf('\\') >= 0
+                || fileName.indexOf('\0') >= 0
+                || fileName.indexOf('\n') >= 0
+                || fileName.indexOf('\r') >= 0) {
+            throw new InvalidOperationException(String.format("非法文件名: %s", originalFilename));
+        }
+        return fileName;
     }
 
     /**
