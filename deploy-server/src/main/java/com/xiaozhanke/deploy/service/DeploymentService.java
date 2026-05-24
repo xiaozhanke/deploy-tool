@@ -229,7 +229,7 @@ public class DeploymentService {
      * @param id 部署记录 Id
      * @return 更新后的部署记录信息
      */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public DeploymentRecordVo startApplication(String id) {
         DeploymentRecord deployment = getDeployment(id);
 
@@ -243,43 +243,8 @@ public class DeploymentService {
             throw new InvalidOperationException("操作失败: 应用已经在运行中");
         }
 
-        try {
-            // 获取服务器信息
-            ServerRecordDto server = serverService.getServerDto(deployment.getServerRecord().getId());
-
-            // 构建启动命令
-            String command = String.format(
-                    "cd %s; " +
-                            "nohup java -jar %s --server.port=%d %s --spring.profiles.active=%s > nohup.out 2>&1 & " +
-                            "PID=$!; " +
-                            "echo $PID; " +
-                            "disown $PID; " +
-                            "exit 0",
-                    deployment.getDeploymentPath(),
-                    deployment.getFileRecord().getFileName(),
-                    deployment.getPort(),
-                    deployment.getProgramArgs(),
-                    deployment.getActiveProfiles()
-            );
-
-            // 执行启动命令
-            String result = sshService.executeCommand(server, command);
-
-            // 获取进程 Id（直接获取 echo $PID 的输出）
-            String processId = result.trim();
-
-            // 更新部署记录
-            deployment.setStatus(DeploymentStatusEnum.SUCCESS)
-                    .setRunning(true)
-                    .setProcessId(processId)
-                    .setLastStartTime(LocalDateTime.now())
-                    .setErrorMessage(null);
-
-            DeploymentRecord updated = deploymentRecordRepository.save(deployment);
-            return deploymentRecordPoVoMapper.poToVo(updated);
-        } catch (Exception e) {
-            throw new BusinessException(String.format("启动应用失败: %s", e.getMessage()), e);
-        }
+        doStart(deployment);
+        return deploymentRecordPoVoMapper.poToVo(deployment);
     }
 
     /**
@@ -288,7 +253,7 @@ public class DeploymentService {
      * @param id 部署记录 Id
      * @return 更新后的部署记录信息
      */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public DeploymentRecordVo stopApplication(String id) {
         DeploymentRecord deployment = getDeployment(id);
 
@@ -308,38 +273,90 @@ public class DeploymentService {
             return deploymentRecordPoVoMapper.poToVo(updated);
         }
 
-        try {
-            // 获取服务器信息
-            ServerRecordDto server = serverService.getServerDto(deployment.getServerRecord().getId());
-
-            // 构建停止命令
-            String command = String.format("kill -15 %s", deployment.getProcessId());
-
-            // 执行停止命令
-            sshService.executeCommand(server, command);
-
-            // 更新部署记录
-            deployment.setRunning(false)
-                    .setLastStopTime(LocalDateTime.now())
-                    .setProcessId(null);
-
-            DeploymentRecord updated = deploymentRecordRepository.save(deployment);
-            return deploymentRecordPoVoMapper.poToVo(updated);
-        } catch (Exception e) {
-            throw new BusinessException(String.format("停止应用失败: %s", e.getMessage()), e);
-        }
+        doStop(deployment);
+        return deploymentRecordPoVoMapper.poToVo(deployment);
     }
 
     /**
      * 重启应用
      *
+     * <p>所有改动都包在同一个事务里：若 doStart 中途失败，doStop 已对实体做的状态变更会随事务一起回滚，
+     * 不再出现"已停止状态被提交、启动失败后无法回退"的不一致状态。
+     *
      * @param id 部署记录 Id
      * @return 更新后的部署记录信息
      */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public DeploymentRecordVo restartApplication(String id) {
-        stopApplication(id);
-        return startApplication(id);
+        DeploymentRecord deployment = getDeployment(id);
+
+        if (deployment.getApplicationType() != ApplicationTypeEnum.BACKEND) {
+            throw new InvalidOperationException("操作失败: 只有后端应用才能重启");
+        }
+
+        if (Boolean.TRUE.equals(deployment.getRunning())) {
+            doStop(deployment);
+        }
+        doStart(deployment);
+        return deploymentRecordPoVoMapper.poToVo(deployment);
+    }
+
+    /**
+     * 在调用方事务内执行启动逻辑（不再做应用类型与运行状态校验，由调用方保证前置条件）。
+     */
+    private void doStart(DeploymentRecord deployment) {
+        try {
+            ServerRecordDto server = serverService.getServerDto(deployment.getServerRecord().getId());
+
+            String command = String.format(
+                    "cd %s; " +
+                            "nohup java -jar %s --server.port=%d %s --spring.profiles.active=%s > nohup.out 2>&1 & " +
+                            "PID=$!; " +
+                            "echo $PID; " +
+                            "disown $PID; " +
+                            "exit 0",
+                    deployment.getDeploymentPath(),
+                    deployment.getFileRecord().getFileName(),
+                    deployment.getPort(),
+                    deployment.getProgramArgs(),
+                    deployment.getActiveProfiles()
+            );
+
+            String result = sshService.executeCommand(server, command);
+            String processId = result.trim();
+
+            deployment.setStatus(DeploymentStatusEnum.SUCCESS)
+                    .setRunning(true)
+                    .setProcessId(processId)
+                    .setLastStartTime(LocalDateTime.now())
+                    .setErrorMessage(null);
+            deploymentRecordRepository.save(deployment);
+        } catch (BusinessException | InvalidOperationException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BusinessException(String.format("启动应用失败: %s", e.getMessage()), e);
+        }
+    }
+
+    /**
+     * 在调用方事务内执行停止逻辑（不再做应用类型与运行状态校验，由调用方保证前置条件）。
+     */
+    private void doStop(DeploymentRecord deployment) {
+        try {
+            ServerRecordDto server = serverService.getServerDto(deployment.getServerRecord().getId());
+
+            String command = String.format("kill -15 %s", deployment.getProcessId());
+            sshService.executeCommand(server, command);
+
+            deployment.setRunning(false)
+                    .setLastStopTime(LocalDateTime.now())
+                    .setProcessId(null);
+            deploymentRecordRepository.save(deployment);
+        } catch (BusinessException | InvalidOperationException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BusinessException(String.format("停止应用失败: %s", e.getMessage()), e);
+        }
     }
 
     /**
