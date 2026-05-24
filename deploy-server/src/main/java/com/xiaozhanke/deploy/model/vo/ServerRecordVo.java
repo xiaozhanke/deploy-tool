@@ -1,5 +1,6 @@
 package com.xiaozhanke.deploy.model.vo;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.xiaozhanke.deploy.model.base.BaseVo;
 import com.xiaozhanke.deploy.enums.SshAuthTypeEnum;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -68,7 +69,9 @@ public class ServerRecordVo extends BaseVo {
     /**
      * 密码（如果使用密码认证）
      */
-    @Schema(description = "密码（如果使用密码认证）")
+    @Schema(description = "密码（如果使用密码认证）", hidden = true)
+    @ToString.Exclude
+    @JsonIgnore
     private String password;
 
     /**
@@ -80,7 +83,9 @@ public class ServerRecordVo extends BaseVo {
     /**
      * 私钥密码（如果私钥有密码保护）
      */
-    @Schema(description = "私钥密码（如果私钥有密码保护）")
+    @Schema(description = "私钥密码（如果私钥有密码保护）", hidden = true)
+    @ToString.Exclude
+    @JsonIgnore
     private String privateKeyPassword;
 
     /**

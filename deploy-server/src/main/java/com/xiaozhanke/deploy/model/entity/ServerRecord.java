@@ -90,6 +90,7 @@ public class ServerRecord extends BasePo {
      */
     @Comment("密码（如果使用密码认证）")
     @Column
+    @ToString.Exclude
     private String password;
 
     /**
@@ -104,6 +105,7 @@ public class ServerRecord extends BasePo {
      */
     @Comment("私钥密码（如果私钥有密码保护）")
     @Column
+    @ToString.Exclude
     private String privateKeyPassword;
 
     /**

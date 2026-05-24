@@ -487,9 +487,9 @@ public class SshService {
         log.debug("获取 JSch 会话实例, 服务器: {}@{} -p {}", server.getUsername(), server.getHost(), server.getPort());
         Session session = jsch.getSession(server.getUsername(), server.getHost(), server.getPort());
 
-        // 如果是密码认证, 设置密码
+        // 如果是密码认证, 设置密码（用 byte[] 重载，避免 JSch 内部把 String 留在 String pool）
         if (server.getAuthType() == SshAuthTypeEnum.PASSWORD && server.getPassword() != null) {
-            session.setPassword(server.getPassword());
+            session.setPassword(server.getPassword().getBytes(StandardCharsets.UTF_8));
             log.debug("已设置会话密码 (密码本身不记录日志)");
         }
 
@@ -524,7 +524,9 @@ public class SshService {
 
             String passphrase = (authType == SshAuthTypeEnum.KEY_WITH_PASS) ? server.getPrivateKeyPassword() : null;
             try {
-                jsch.addIdentity(privateKeyPath, passphrase);
+                // 用 byte[] 重载，避免 passphrase 以 String 形式被 JSch 内部缓存
+                byte[] passphraseBytes = passphrase == null ? null : passphrase.getBytes(StandardCharsets.UTF_8);
+                jsch.addIdentity(privateKeyPath, null, passphraseBytes);
                 log.info("已添加私钥身份: {}", privateKeyPath);
             } catch (JSchException e) {
                 log.error("添加私钥身份失败 '{}': {}", privateKeyPath, e.getMessage());
