@@ -14,6 +14,7 @@ import com.xiaozhanke.deploy.model.request.DeploymentParams;
 import com.xiaozhanke.deploy.model.response.PageResult;
 import com.xiaozhanke.deploy.model.vo.DeploymentRecordVo;
 import com.xiaozhanke.deploy.repository.DeploymentRecordRepository;
+import com.xiaozhanke.deploy.util.ShellArgEscaper;
 import jakarta.persistence.criteria.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -302,12 +303,14 @@ public class DeploymentService {
     }
 
     /**
+    /**
      * 在调用方事务内执行启动逻辑（不再做应用类型与运行状态校验，由调用方保证前置条件）。
      */
     private void doStart(DeploymentRecord deployment) {
         try {
             ServerRecordDto server = serverService.getServerDto(deployment.getServerRecord().getId());
 
+            // 所有取自用户输入的字段都套上单引号字面值，避免 ; && ` $() 这类元字符触发命令注入
             String command = String.format(
                     "cd %s; " +
                             "nohup java -jar %s --server.port=%d %s --spring.profiles.active=%s > nohup.out 2>&1 & " +
@@ -315,11 +318,11 @@ public class DeploymentService {
                             "echo $PID; " +
                             "disown $PID; " +
                             "exit 0",
-                    deployment.getDeploymentPath(),
-                    deployment.getFileRecord().getFileName(),
+                    ShellArgEscaper.singleQuote(deployment.getDeploymentPath()),
+                    ShellArgEscaper.singleQuote(deployment.getFileRecord().getFileName()),
                     deployment.getPort(),
-                    deployment.getProgramArgs(),
-                    deployment.getActiveProfiles()
+                    ShellArgEscaper.singleQuote(deployment.getProgramArgs()),
+                    ShellArgEscaper.singleQuote(deployment.getActiveProfiles())
             );
 
             String result = sshService.executeCommand(server, command);
@@ -345,7 +348,9 @@ public class DeploymentService {
         try {
             ServerRecordDto server = serverService.getServerDto(deployment.getServerRecord().getId());
 
-            String command = String.format("kill -15 %s", deployment.getProcessId());
+            // processId 必须是纯数字，否则 shell 会按 jobspec 解析或被注入额外语义
+            String command = String.format("kill -15 %s",
+                    ShellArgEscaper.requireNumericProcessId(deployment.getProcessId()));
             sshService.executeCommand(server, command);
 
             deployment.setRunning(false)
@@ -382,9 +387,9 @@ public class DeploymentService {
             // 获取服务器信息
             ServerRecordDto server = serverService.getServerDto(deployment.getServerRecord().getId());
 
-            // 构建检查命令
+            // processId 强制数字，避免被 shell 当 jobspec 或被注入额外语义
             String command = String.format("ps -p %s > /dev/null && echo 'running' || echo 'stopped'",
-                    deployment.getProcessId());
+                    ShellArgEscaper.requireNumericProcessId(deployment.getProcessId()));
 
             // 执行检查命令
             String result = sshService.executeCommand(server, command);
@@ -437,11 +442,11 @@ public class DeploymentService {
                 // 建立 SSH 连接
                 String sessionId = sshService.connect(server);
                 try {
-                    // 解压文件
+                    // 解压文件；deploymentPath 与 fileName 来自用户输入，必须套单引号字面值
                     String unzipCommand = String.format(
                             "cd %s && unzip -o %s",
-                            deployment.getDeploymentPath(),
-                            newFileRecord.getFileName()
+                            ShellArgEscaper.singleQuote(deployment.getDeploymentPath()),
+                            ShellArgEscaper.singleQuote(newFileRecord.getFileName())
                     );
                     sshService.executeCommand(server, unzipCommand);
 
