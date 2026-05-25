@@ -30,6 +30,10 @@ spring:
     locale: zh_CN
 app:
   security:
+    # 密码有效期（天数）。> 0：密码自最后修改起 N 天内有效；<= 0：禁用密码有效期（永不过期）。
+    password-validity-days: 365
+    # 连续登录失败锁定阈值。> 0：达到该值即锁定；<= 0：禁用失败锁定（仅手工锁定仍生效）。
+    max-failed-logins: 5
     jwt:
       # JWT 签名密钥（JWK JSON）持久化文件路径，跨进程重启稳定，避免重启踢出已登录用户。
       # 生产环境请预先生成并以受限权限部署；dev profile 默认允许自动生成。
