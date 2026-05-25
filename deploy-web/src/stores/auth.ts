@@ -139,8 +139,10 @@ export const useAuthStore = defineStore('auth', {
     async oauth2Authorize() {
       // 重置会话中止控制器
       this.sessionAbortController = null
-      // 在重定向前保存目标路径
-      const redirectPath = router.currentRoute.value.query.fullPath
+      // 路由守卫在跳登录页时把原始路径写进 query.redirect，这里读出来一路带到 OAuth state，
+      // 让 handleOAuth2Callback 拿到 state.redirectPath 即可跳回；query 只是中间载体，state 是唯一终点。
+      const redirectQuery = router.currentRoute.value.query.redirect
+      const redirectPath = typeof redirectQuery === 'string' ? redirectQuery : undefined
       await oidcService.handleAuthorizationRedirect({ state: { redirectPath } })
     },
 
