@@ -18,7 +18,7 @@ defineOptions({
       </router-view>
 
       <footer class="login-footer">
-        <p>© {{ new Date().getFullYear() }} 赞同科技股份有限公司. All Rights Reserved.</p>
+        <p>© {{ new Date().getFullYear() }} All Rights Reserved.</p>
       </footer>
     </div>
   </div>
