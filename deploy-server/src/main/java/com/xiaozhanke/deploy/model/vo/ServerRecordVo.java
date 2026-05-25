@@ -1,6 +1,5 @@
 package com.xiaozhanke.deploy.model.vo;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.xiaozhanke.deploy.model.base.BaseVo;
 import com.xiaozhanke.deploy.enums.SshAuthTypeEnum;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -10,6 +9,9 @@ import lombok.ToString;
 
 /**
  * 服务器记录 VO 类
+ *
+ * <p>VO 不携带任何凭据字段：password 与 privateKeyPassword 在 PO 上仍然保留以供建立连接使用，
+ * 但绝不通过 VO 出站；如需在内部传递凭据请走 {@link com.xiaozhanke.deploy.model.dto.ServerRecordDto}。
  *
  * @author xiaozhanke
  */
@@ -67,26 +69,10 @@ public class ServerRecordVo extends BaseVo {
     private SshAuthTypeEnum authType;
 
     /**
-     * 密码（如果使用密码认证）
-     */
-    @Schema(description = "密码（如果使用密码认证）", hidden = true)
-    @ToString.Exclude
-    @JsonIgnore
-    private String password;
-
-    /**
      * 私钥路径（如果使用密钥认证）
      */
     @Schema(description = "私钥路径（如果使用密钥认证）")
     private String privateKeyPath;
-
-    /**
-     * 私钥密码（如果私钥有密码保护）
-     */
-    @Schema(description = "私钥密码（如果私钥有密码保护）", hidden = true)
-    @ToString.Exclude
-    @JsonIgnore
-    private String privateKeyPassword;
 
     /**
      * 密钥交换算法
