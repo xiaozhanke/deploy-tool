@@ -40,6 +40,23 @@ app:
       # 允许的跨域 Origin 列表。空列表（默认）表示仅同源访问，作用于 WebSocket 握手与 HTTP CORS 预检。
       # dev / staging 环境按需在对应 profile 配置文件追加，生产侧若同域部署可保持默认。
       allowed-origins: []
+  file:
+    # 允许上传的文件扩展名白名单（忽略大小写，可写复合后缀如 .tar.gz）。
+    # 空列表代表不做限制（仅作存量兼容用），生产环境务必显式列出业务需要的类型。
+    allowed-extensions:
+      - .jar
+      - .war
+      - .zip
+      - .tar.gz
+      - .tgz
+      - .sh
+      - .conf
+      - .yml
+      - .yaml
+      - .properties
+      - .xml
+      - .json
+      - .txt
 springdoc:
   swagger-ui:
     # 分组排序

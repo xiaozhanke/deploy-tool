@@ -1,5 +1,6 @@
 package com.xiaozhanke.deploy.service;
 
+import com.xiaozhanke.deploy.config.FileStorageProperties;
 import com.xiaozhanke.deploy.exception.BusinessException;
 import com.xiaozhanke.deploy.exception.InvalidOperationException;
 import com.xiaozhanke.deploy.exception.ResourceNotFoundException;
@@ -12,6 +13,7 @@ import com.xiaozhanke.deploy.repository.FileRecordRepository;
 import jakarta.persistence.criteria.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.data.domain.Page;
@@ -46,15 +48,20 @@ import java.util.List;
  */
 @Slf4j
 @Service
+@EnableConfigurationProperties(FileStorageProperties.class)
 public class FileStorageService {
 
     private final Path rootDirectory;
     private final FileRecordRepository fileRecordRepository;
     private final FileRecordPoVoMapper fileRecordPoVoMapper;
+    private final FileStorageProperties fileStorageProperties;
 
-    public FileStorageService(FileRecordRepository fileRecordRepository, FileRecordPoVoMapper fileRecordPoVoMapper) {
+    public FileStorageService(FileRecordRepository fileRecordRepository,
+                              FileRecordPoVoMapper fileRecordPoVoMapper,
+                              FileStorageProperties fileStorageProperties) {
         this.fileRecordRepository = fileRecordRepository;
         this.fileRecordPoVoMapper = fileRecordPoVoMapper;
+        this.fileStorageProperties = fileStorageProperties;
         // 本地存储根目录绝对路径
         this.rootDirectory = Paths.get(System.getProperty("user.dir"), "files").normalize();
         try {
@@ -75,6 +82,7 @@ public class FileStorageService {
     public FileRecordVo storeFile(MultipartFile file, FileParams fileParams) {
         String originalFilename = file.getOriginalFilename();
         String fileName = sanitizeUploadedFileName(originalFilename);
+        assertExtensionAllowed(fileName);
         try {
             String relativePath = buildRelativePath(fileParams);
             Path targetDir = getTargetDir(relativePath);
@@ -235,6 +243,7 @@ public class FileStorageService {
         FileRecord fileRecord = getFileRecord(fileId);
         String originalFilename = file.getOriginalFilename();
         String fileName = sanitizeUploadedFileName(originalFilename);
+        assertExtensionAllowed(fileName);
         try {
             String relativePath = fileRecord.getRelativePath();
             Path targetDir = getTargetDir(relativePath);
@@ -324,6 +333,21 @@ public class FileStorageService {
             throw new InvalidOperationException(String.format("非法文件名: %s", originalFilename));
         }
         return fileName;
+    }
+
+    /**
+     * 校验文件扩展名是否在白名单内。白名单为空视为放行所有，便于存量环境平滑迁移；
+     * 一旦在 {@code application.yml} 显式配置 {@code app.file.allowed-extensions} 即生效。
+     *
+     * @param fileName 已清洗的纯文件名
+     */
+    private void assertExtensionAllowed(String fileName) {
+        if (!fileStorageProperties.isAllowed(fileName)) {
+            throw new InvalidOperationException(String.format(
+                    "非法文件类型: [%s]，仅允许 %s",
+                    fileName,
+                    fileStorageProperties.allowedExtensions()));
+        }
     }
 
     /**
