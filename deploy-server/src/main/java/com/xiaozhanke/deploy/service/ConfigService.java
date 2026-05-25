@@ -33,15 +33,20 @@ public class ConfigService {
      * @return 配置文件内容
      */
     public String addNginxConfig(NginxConfigParams params) {
-        log.info("开始生成配置文件");
         String templateName = "nginx.conf.ftl";
+        log.info("开始生成 Nginx 配置, 模板=[{}]", templateName);
         try {
-            log.info("获取模板文件: {}", templateName);
             Template template = freeMarkerConfigurer.getConfiguration().getTemplate(templateName);
             StringWriter writer = new StringWriter();
             template.process(params, writer);
-            log.info("生成配置文件完成:\n{}", writer);
-            return writer.toString();
+            String content = writer.toString();
+            // 仅记录度量信息（行数 / 字符数 / 模板名）以避免把内网域名、upstream 地址、SSL 配置等基础设施细节
+            // 灌进日志体系；完整配置仍以接口返回值形式回给调用方落盘
+            log.info("生成 Nginx 配置完成, 模板=[{}], 行数={}, 字符数={}",
+                    templateName,
+                    countLines(content),
+                    content.length());
+            return content;
         } catch (IOException e) {
             String errorMessage = String.format("无法加载配置文件模板 [%s]，请检查文件是否存在且可读。", templateName);
             throw new BusinessException(errorMessage, e);
@@ -49,5 +54,18 @@ public class ConfigService {
             String errorMessage = String.format("使用模板 [%s] 生成配置文件时失败，请检查模板语法和参数。", templateName);
             throw new BusinessException(errorMessage, e);
         }
+    }
+
+    private int countLines(String content) {
+        if (content == null || content.isEmpty()) {
+            return 0;
+        }
+        int count = 1;
+        for (int i = 0; i < content.length(); i++) {
+            if (content.charAt(i) == '\n') {
+                count++;
+            }
+        }
+        return count;
     }
 }
