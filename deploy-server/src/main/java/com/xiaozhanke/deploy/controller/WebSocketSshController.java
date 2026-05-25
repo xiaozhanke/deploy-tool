@@ -5,7 +5,6 @@ import com.xiaozhanke.deploy.model.request.SshSftpDownloadMessage;
 import com.xiaozhanke.deploy.model.request.SshSftpUploadMessage;
 import com.xiaozhanke.deploy.model.request.SshShellMessage;
 import com.xiaozhanke.deploy.service.SshService;
-import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -61,7 +60,7 @@ public class WebSocketSshController {
      * @param message   WebSocket 消息体，包含本地文件路径和远程目录路径
      */
     @MessageMapping("/ssh/sessions/{sessionId}/sftp/upload")
-    public void handleSftpUpload(@DestinationVariable String sessionId, @Valid SshSftpUploadMessage message) {
+    public void handleSftpUpload(@DestinationVariable String sessionId, @Validated SshSftpUploadMessage message) {
         sshService.uploadFile(sessionId, message.getLocalPath(), message.getRemoteDir());
     }
 
@@ -72,7 +71,7 @@ public class WebSocketSshController {
      * @param message   WebSocket 消息体，包含远程文件路径和本地目录路径
      */
     @MessageMapping("/ssh/sessions/{sessionId}/sftp/download")
-    public void handleSftpDownload(@DestinationVariable String sessionId, @Valid SshSftpDownloadMessage message) {
+    public void handleSftpDownload(@DestinationVariable String sessionId, @Validated SshSftpDownloadMessage message) {
         sshService.downloadFile(sessionId, message.getRemotePath(), message.getLocalDir());
     }
 
