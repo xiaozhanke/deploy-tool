@@ -43,8 +43,9 @@ export const useAuthStore = defineStore('auth', {
     accessToken: (state) => state.oidcUser?.access_token,
     userAuthorities: (state): string[] => {
       // 你可以根据后端返回的 claim 自定义权限字段，比如 'authorities'
-      const authorities = (state.oidcUser?.profile?.authorities as string[]) || []
-      return authorities
+      // 用 Array.isArray 守卫替代 `as string[]` 强转，避免后端意外返回字符串 / 对象时整个 store 取值崩溃
+      const claim = state.oidcUser?.profile?.authorities
+      return Array.isArray(claim) ? claim.filter((item): item is string => typeof item === 'string') : []
     },
     profile: (state): UserProfile | null => state.userProfile,
   },
@@ -164,9 +165,12 @@ export const useAuthStore = defineStore('auth', {
       try {
         const user = await oidcService.handleAuthorizationCallback()
         if (user && !user.expired) {
-          // 从 state 中获取重定向前保存的路径
-          const state = user.state as { redirectPath?: string } | undefined
-          const redirectPath = state?.redirectPath || '/'
+          // user.state 是 oidcAuthorize 写入的回调态，类型不可信，先 narrow 再读 redirectPath
+          const state =
+            user.state && typeof user.state === 'object' && 'redirectPath' in user.state
+              ? (user.state as { redirectPath?: unknown })
+              : null
+          const redirectPath = typeof state?.redirectPath === 'string' ? state.redirectPath : '/'
           await router.push(redirectPath)
         } else {
           throw new Error('登录成功，但获取到的用户信息无效或已过期。')

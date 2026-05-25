@@ -15,8 +15,8 @@ const emit = defineEmits<{
   (e: 'close', value: void): void
 }>()
 
-// 从父组件获取 sessionId
-const sessionId = inject('sessionId') as Ref<string>
+// 从父组件获取 sessionId；若未注入则给空字符串 Ref 兜底，避免 inject 返回 undefined 后续访问 .value 抛错
+const sessionId = inject<Ref<string>>('sessionId', ref(''))
 
 // 文件路径
 const filePath = ref<string>('')
