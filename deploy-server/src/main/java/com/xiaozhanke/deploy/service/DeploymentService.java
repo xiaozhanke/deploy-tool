@@ -64,8 +64,9 @@ public class DeploymentService {
      */
     @Transactional
     public DeploymentRecordVo createDeployment(DeploymentParams params) {
-        ServerRecord serverRecord = serverService.getServer(params.getServerRecordId());
-        FileRecord fileRecord = fileStorageService.getFileRecord(params.getFileRecordId());
+        // 关联仅作 FK 占位：用代理避免把 ServerRecord/FileRecord 的全部字段拉到内存
+        ServerRecord serverRecord = serverService.getServerReference(params.getServerRecordId());
+        FileRecord fileRecord = fileStorageService.getFileRecordReference(params.getFileRecordId());
 
         DeploymentRecord deployment = new DeploymentRecord()
                 .setServerRecord(serverRecord)
@@ -135,8 +136,8 @@ public class DeploymentService {
     @Transactional
     public DeploymentRecordVo updateDeployment(String id, DeploymentParams params) {
         DeploymentRecord deployment = getDeployment(id);
-        ServerRecord serverRecord = serverService.getServer(params.getServerRecordId());
-        FileRecord fileRecord = fileStorageService.getFileRecord(params.getFileRecordId());
+        ServerRecord serverRecord = serverService.getServerReference(params.getServerRecordId());
+        FileRecord fileRecord = fileStorageService.getFileRecordReference(params.getFileRecordId());
 
         deployment.setServerRecord(serverRecord)
                 .setFileRecord(fileRecord)
@@ -418,6 +419,7 @@ public class DeploymentService {
     @Transactional
     public DeploymentRecordVo updateApplication(String id, String fileRecordId) {
         DeploymentRecord deployment = getDeployment(id);
+        // 这里需要拿到 fileName 用作类型判定，因此走 getFileRecord 实加载
         FileRecord newFileRecord = fileStorageService.getFileRecord(fileRecordId);
 
         // 检查文件类型是否匹配

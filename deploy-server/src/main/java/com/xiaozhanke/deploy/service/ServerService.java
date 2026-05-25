@@ -93,6 +93,23 @@ public class ServerService {
     }
 
     /**
+     * 仅作为 FK 占位返回服务器代理。
+     *
+     * <p>用于 DeploymentService 拼装关联实体的场景：调用方只需要 FK 引用而不读取连接凭据，使用代理避免无谓地
+     * 把 password / privateKey 等敏感字段拉到内存。先 {@link ServerRepository#existsByIdAndDeletedIsFalse}
+     * 校验存在性以便给出 404，再用 {@link JpaRepository#getReferenceById} 取仅含 ID 的代理。
+     *
+     * @param id 服务器 Id
+     * @return 仅持有 ID 的 ServerRecord 代理（必须在事务内访问其他字段才会触发懒加载）
+     */
+    public ServerRecord getServerReference(String id) {
+        if (!serverRepository.existsByIdAndDeletedIsFalse(id)) {
+            throw new ResourceNotFoundException(String.format("服务器记录 [%s] 不存在", id));
+        }
+        return serverRepository.getReferenceById(id);
+    }
+
+    /**
      * 获取服务器 DTO
      *
      * @param id 服务器 Id

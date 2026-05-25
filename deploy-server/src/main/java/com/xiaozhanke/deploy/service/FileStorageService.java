@@ -275,6 +275,22 @@ public class FileStorageService {
     }
 
     /**
+     * 仅作为 FK 占位返回文件代理。
+     *
+     * <p>用于 DeploymentService 拼装关联实体时只需 fileRecordId 引用而不读取文件元数据的场景；
+     * 先校验存在性以便给出 404，再用 {@code getReferenceById} 返回仅持有 ID 的代理。
+     *
+     * @param fileId 文件记录 Id
+     * @return 仅持有 ID 的 FileRecord 代理（必须在事务内访问其他字段才会触发懒加载）
+     */
+    public FileRecord getFileRecordReference(String fileId) {
+        if (!fileRecordRepository.existsByIdAndDeletedIsFalse(fileId)) {
+            throw new ResourceNotFoundException(String.format("文件记录 [%s] 不存在", fileId));
+        }
+        return fileRecordRepository.getReferenceById(fileId);
+    }
+
+    /**
      * 构建相对路径
      *
      * @param fileParams 文件参数
