@@ -5,7 +5,7 @@ import { yaml } from '@codemirror/lang-yaml'
 import { EditorView } from 'codemirror'
 import { highlightWhitespace } from '@codemirror/view'
 import { Close } from '@element-plus/icons-vue'
-import { sshExecCommand } from '@/api/api'
+import { sshExecCommand, sshWriteFile } from '@/api/api'
 
 defineOptions({
   name: 'CodeEditor',
@@ -64,7 +64,7 @@ const fetchFileContent = async () => {
     fileContent.value = result
     return true
   } catch (error) {
-    ElNotification.error('获取文件内容失败:' + String(error))
+    ElNotification.error('获取文件内容失败:' + extractErrorMessage(error))
     return false
   }
 }
@@ -98,17 +98,15 @@ const handleSave = () => {
     cancelButtonText: '取消',
   })
     .then(async () => {
-      // 将 $ 转义为 \$
-      // 以防止在 shell 中被解释为变量
-      const escapedContent = fileContent.value.replace(/\$/g, '\\$')
-      const command = `cat <<EOF > ${filePath.value}\n${escapedContent}\nEOF`
+      // 通过 SFTP 直接把当前内容覆盖写入远端文件：路径与内容都走 SFTP 协议字段，
+      // 不再拼 `cat <<EOF > ${path}` 命令，前端不需要做任何 shell 转义。
       try {
-        await sshExecCommand(sessionId.value, command)
+        await sshWriteFile(sessionId.value, filePath.value, fileContent.value)
         ElNotification.success('文件保存成功')
         emit('close')
         handleClose()
       } catch (error) {
-        ElNotification.error('文件保存失败:' + String(error))
+        ElNotification.error('文件保存失败:' + extractErrorMessage(error))
       }
     })
     .catch(() => {

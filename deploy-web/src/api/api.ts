@@ -105,6 +105,17 @@ export const sshExecCommand = (sessionId: string, command: string): Promise<Exec
 }
 
 /**
+ * 通过 SFTP 把文本内容覆盖写入远程文件。
+ * 替代旧的「拼 cat <<EOF 走 Exec」方案，避免 path 与内容被 shell 解释。
+ * @param sessionId 会话 Id
+ * @param remotePath 远程文件绝对路径（POSIX 分隔符 /）
+ * @param content 文件内容（UTF-8）
+ */
+export const sshWriteFile = (sessionId: string, remotePath: string, content: string): Promise<void> => {
+  return request.post(`/ssh/sessions/${sessionId}/file`, { remotePath, content })
+}
+
+/**
  * 新建 Nginx 配置文件
  * @param params 配置文件参数
  */

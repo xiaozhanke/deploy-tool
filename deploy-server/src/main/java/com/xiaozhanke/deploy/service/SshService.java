@@ -34,6 +34,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -423,6 +424,46 @@ public class SshService {
 
             try (InputStream in = file.getInputStream()) {
                 channel.put(in, remoteFilePath, new WebSocketSftpProgressMonitor(sessionId, file.getSize(), messagingTemplate, FileOperationEnum.UPLOAD), ChannelSftp.OVERWRITE);
+            }
+        });
+    }
+
+    /**
+     * 用 SFTP 把文本内容覆盖写入远程文件。
+     *
+     * <p>code-editor 保存配置文件的入口：替代 {@code cat <<EOF > path} 拼接 shell 命令的旧实现，
+     * 避免 path 与内容被 shell 解释带来的命令注入面。路径会按 POSIX 规则拆成目录与文件名分别校验。
+     *
+     * @param sessionId      会话 Id
+     * @param remoteFilePath 远程文件绝对路径
+     * @param content        UTF-8 文本内容
+     * @throws BusinessException 路径/内容非法或 SFTP 操作失败
+     */
+    public void writeRemoteFile(String sessionId, String remoteFilePath, String content) {
+        if (!StringUtils.hasText(remoteFilePath)) {
+            throw new BusinessException("远程文件路径不能为空");
+        }
+        if (content == null) {
+            throw new BusinessException("文件内容不能为空");
+        }
+        int lastSlash = remoteFilePath.lastIndexOf('/');
+        if (lastSlash < 0) {
+            throw new BusinessException(String.format("远程文件路径必须包含目录: %s", remoteFilePath));
+        }
+        String remoteDir = lastSlash == 0 ? "/" : remoteFilePath.substring(0, lastSlash);
+        String fileName = remoteFilePath.substring(lastSlash + 1);
+        PathSafetyUtils.assertSafeFileName(fileName);
+        PathSafetyUtils.assertNoTraversalSegments(remoteDir);
+
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+        String operationDesc = String.format("写入文件 '%s' (%d bytes)", remoteFilePath, bytes.length);
+        executeSftpOperation(sessionId, operationDesc, channel -> {
+            String targetDir = prepareRemoteDirectory(channel, remoteDir);
+            String fullPath = PathSafetyUtils.safeJoin(targetDir, fileName);
+            try (InputStream in = new ByteArrayInputStream(bytes)) {
+                channel.put(in, fullPath,
+                        new WebSocketSftpProgressMonitor(sessionId, bytes.length, messagingTemplate, FileOperationEnum.UPLOAD),
+                        ChannelSftp.OVERWRITE);
             }
         });
     }

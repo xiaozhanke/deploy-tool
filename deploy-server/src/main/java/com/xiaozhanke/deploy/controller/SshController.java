@@ -4,6 +4,7 @@ package com.xiaozhanke.deploy.controller;
 import com.xiaozhanke.deploy.model.dto.ServerRecordDto;
 import com.xiaozhanke.deploy.model.dto.SshExecResult;
 import com.xiaozhanke.deploy.model.request.SshExecMessage;
+import com.xiaozhanke.deploy.model.request.SshWriteFileMessage;
 import com.xiaozhanke.deploy.service.ServerService;
 import com.xiaozhanke.deploy.service.SshService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -145,6 +146,23 @@ public class SshController {
     public ResponseEntity<StreamingResponseBody> sftpDownloadFile(@Parameter(description = "会话 Id", required = true) @PathVariable String sessionId,
                                                                   @Parameter(description = "远程文件路径", required = true) @RequestParam String remotePath) {
         return sshService.downloadFile(sessionId, remotePath);
+    }
+
+    /**
+     * 通过 SFTP 把文本内容覆盖写入远程文件
+     *
+     * <p>专供 code-editor 等"编辑后保存"场景使用，替代以前在前端拼 {@code cat <<EOF > path} 走 Exec 通道的写法，
+     * 杜绝路径与内容被 shell 解释带来的命令注入面。
+     *
+     * @param sessionId 会话 Id
+     * @param message   含远程文件路径与文本内容
+     */
+    @Operation(summary = "SFTP 写文件", description = "通过 SFTP 把文本内容覆盖写入指定远程文件")
+    @PostMapping(value = "/sessions/{sessionId}/file")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void sftpWriteFile(@Parameter(description = "会话 Id", required = true) @PathVariable String sessionId,
+                              @Validated @RequestBody SshWriteFileMessage message) {
+        sshService.writeRemoteFile(sessionId, message.getRemotePath(), message.getContent());
     }
 
 }
