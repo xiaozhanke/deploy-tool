@@ -188,8 +188,11 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/login", "/api/auth/logout").permitAll()
                         // 仅管理员可访问 actuator
                         .requestMatchers("/actuator/**").hasRole("ADMIN")
-                        // WebSocket 端点收紧到需认证。STOMP CONNECT 时再走 ChannelInterceptor 二次校验 Bearer Token。
-                        .requestMatchers("/websocket/**").authenticated()
+                        // /websocket 升级请求放行：浏览器原生 WebSocket 握手不允许自定义 Authorization header，
+                        // Bearer 只能塞进 STOMP CONNECT 帧；真正的认证在 WebSocketConfig.configureClientInboundChannel
+                        // 的 ChannelInterceptor 中完成——未携带 / 无效 token 的 CONNECT 帧会被立刻拒绝，
+                        // HTTP 升级返回 101 仅相当于建立了 TCP 通道，没有 STOMP CONNECT 就无法订阅或发布。
+                        .requestMatchers("/websocket/**").permitAll()
                         .anyRequest().authenticated())
                 // 禁用 Http Basic 认证
                 .httpBasic(AbstractHttpConfigurer::disable)
