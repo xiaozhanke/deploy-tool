@@ -125,14 +125,32 @@ instance.interceptors.response.use(
           errorInfo.title = '参数错误'
           errorInfo.message = backendMessage || '请求参数错误'
           break
-        case 401:
-          // 401 触发 session 失效流程后，仍走标准 reject 让调用方的 .catch 与 finally 执行完毕；
-          // 之前用 new Promise(() => {}) 永不结算阻塞了外部组件自己的 loading 计数器。
-          // sessionAbortController 已经在 handleSessionExpired 内取消了后续请求。
+        case 401: {
+          // 401 有两种来源：
+          // (a) 登录入口认证失败——GlobalExceptionHandler 会带上 INVALID_CREDENTIALS 等业务码，
+          //     这类是未登录用户，不该跑 handleSessionExpired 的注销流程（否则弹"登录已过期"会让用户困惑）
+          // (b) 已登录请求 token 失效——resource server filter 自动返回 401，没有上述业务码
+          const AUTH_FAILURE_STATUSES = [
+            'INVALID_CREDENTIALS',
+            'CREDENTIALS_EXPIRED',
+            'ACCOUNT_LOCKED',
+            'ACCOUNT_DISABLED',
+            'ACCOUNT_EXPIRED',
+            'AUTHENTICATION_FAILED',
+          ]
+          if (backendStatus && AUTH_FAILURE_STATUSES.includes(backendStatus)) {
+            errorInfo.title = '登录失败'
+            errorInfo.message = backendMessage || '用户名或密码错误'
+            break
+          }
+          // sessionAbortController 已经在 handleSessionExpired 内取消了后续请求；
+          // 走标准 reject 让调用方的 .catch 与 finally 执行完毕，之前用 new Promise(() => {})
+          // 永不结算阻塞了外部组件自己的 loading 计数器。
           errorInfo.title = '登录失效'
           errorInfo.message = backendMessage || '登录状态已失效，请重新登录'
           await useAuthStore().handleSessionExpired()
           return Promise.reject(new ApiError(errorInfo.code, errorInfo.status, errorInfo.message))
+        }
         case 403:
           errorInfo.title = '禁止访问'
           errorInfo.message = backendMessage || '您没有权限执行此操作'
