@@ -6,15 +6,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiaozhanke.deploy.enums.SshAuthTypeEnum;
 import com.xiaozhanke.deploy.model.dto.ServerRecordDto;
 import com.xiaozhanke.deploy.model.entity.ServerRecord;
-import com.xiaozhanke.deploy.model.vo.ServerRecordVo;
 import org.junit.jupiter.api.Test;
 
 /**
- * 验证 ServerRecord 三件套（DTO / 实体 / VO）的敏感字段不会被 toString 或 JSON 序列化无意泄露。
+ * 验证 ServerRecord 在内存 / 序列化路径里携带的敏感字段不会被 toString 或 Jackson 无意泄露。
  *
- * <p>之前 SshService 的 debug 日志直接 {@code log.debug("server: {}", server)}，Lombok 默认 {@code toString}
- * 会把 password / privateKeyPassword 原样拼进去；Controller 返回的 VO 经 Jackson 序列化也会把这两个字段
- * 暴露给前端。本测试覆盖三层接口，确保 {@code @ToString.Exclude} 与 {@code @JsonIgnore} 同时生效。
+ * <p>覆盖的两层：
+ * <ul>
+ *   <li>{@link ServerRecordDto}：服务层内部传递凭据用，{@code @ToString.Exclude} +
+ *       {@code @JsonIgnore} 防止日志和 JSON 误带</li>
+ *   <li>{@link ServerRecord}：JPA 实体，进入懒加载日志或调试输出时也不能暴露</li>
+ * </ul>
+ *
+ * <p>{@code ServerRecordVo} 已彻底移除 password / privateKeyPassword 字段，从类型系统层面
+ * 杜绝出站泄露，无需也无法再用运行时断言覆盖。
  *
  * @author xiaozhanke
  */
@@ -46,18 +51,6 @@ class ServerRecordSecretMaskingTest {
         dto.setPrivateKeyPassword(SENSITIVE_PASSPHRASE);
 
         String json = new ObjectMapper().writeValueAsString(dto);
-        assertThat(json)
-                .doesNotContain(SENSITIVE_PASSWORD)
-                .doesNotContain(SENSITIVE_PASSPHRASE);
-    }
-
-    @Test
-    void voJsonSerializationMustNotLeakSecrets() throws Exception {
-        ServerRecordVo vo = new ServerRecordVo();
-        vo.setPassword(SENSITIVE_PASSWORD);
-        vo.setPrivateKeyPassword(SENSITIVE_PASSPHRASE);
-
-        String json = new ObjectMapper().writeValueAsString(vo);
         assertThat(json)
                 .doesNotContain(SENSITIVE_PASSWORD)
                 .doesNotContain(SENSITIVE_PASSPHRASE);
