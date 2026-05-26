@@ -122,31 +122,31 @@ instance.interceptors.response.use(
       // 根据 HTTP 状态码进行异常处理
       switch (httpStatusCode) {
         case 400:
-          errorInfo.title = `参数错误 (${backendStatus || 'INVALID_ARGUMENT'})`
+          errorInfo.title = '参数错误'
           errorInfo.message = backendMessage || '请求参数错误'
           break
         case 401:
           // 401 触发 session 失效流程后，仍走标准 reject 让调用方的 .catch 与 finally 执行完毕；
           // 之前用 new Promise(() => {}) 永不结算阻塞了外部组件自己的 loading 计数器。
           // sessionAbortController 已经在 handleSessionExpired 内取消了后续请求。
-          errorInfo.title = `登录失效 (${backendStatus || 'UNAUTHENTICATED'})`
+          errorInfo.title = '登录失效'
           errorInfo.message = backendMessage || '登录状态已失效，请重新登录'
           await useAuthStore().handleSessionExpired()
           return Promise.reject(new ApiError(errorInfo.code, errorInfo.status, errorInfo.message))
         case 403:
-          errorInfo.title = `禁止访问 (${backendStatus || 'PERMISSION_DENIED'})`
+          errorInfo.title = '禁止访问'
           errorInfo.message = backendMessage || '您没有权限执行此操作'
           break
         case 404:
-          errorInfo.title = `资源未找到 (${backendStatus || 'NOT_FOUND'})`
+          errorInfo.title = '资源未找到'
           errorInfo.message = backendMessage || '请求的资源未找到'
           break
         case 500:
-          errorInfo.title = `服务器错误 (${backendStatus || 'INTERNAL_ERROR'})`
+          errorInfo.title = '服务器错误'
           errorInfo.message = backendMessage || '服务器内部错误，请联系管理员'
           break
         default:
-          errorInfo.title = `请求错误 (${backendStatus})`
+          errorInfo.title = '请求错误'
           errorInfo.message = backendMessage || `HTTP 请求错误，状态码: ${httpStatusCode}`
       }
     } else if (error.request) {
