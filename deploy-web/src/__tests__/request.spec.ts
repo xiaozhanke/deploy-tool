@@ -2,8 +2,8 @@ import AxiosMockAdapter from 'axios-mock-adapter'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
-// request.ts 现在显式 import { ElLoading, ElNotification } from 'element-plus'，
-// 用 vi.mock 替换模块导出即可拦截全部用法，比 stubGlobal 稳健
+// request.ts 通过 AutoImport + ElementPlusResolver 隐式拿到 ElLoading / ElNotification，
+// 用 vi.mock 替换 'element-plus' 模块导出即可拦截全部用法
 const elLoadingClose = vi.fn()
 const elLoadingService = vi.fn(() => ({ close: elLoadingClose }))
 const elNotificationError = vi.fn()

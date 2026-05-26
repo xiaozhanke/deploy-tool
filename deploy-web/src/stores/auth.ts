@@ -1,6 +1,5 @@
 import router from '@/router'
 import { defineStore } from 'pinia'
-import { ElMessageBox, ElNotification } from 'element-plus'
 import { useWebSocketStore } from './websocket'
 import type { User } from 'oidc-client-ts'
 import { oidcService } from '@/services/oidcService'

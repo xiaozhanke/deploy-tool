@@ -1,10 +1,26 @@
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
+import AutoImport from 'unplugin-auto-import/vite'
+import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
-// 仅供 vitest 使用：去掉 basic-ssl / devTools / autoimport 等运行时插件，避免测试启动时引入无关副作用
+// 源码里 ElNotification 等依赖 AutoImport 隐式注入，vitest 也必须经过同一条 transform 链
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    vue(),
+    AutoImport({
+      imports: [
+        'vue',
+        {
+          '@/utils/errorMessage': ['extractErrorMessage'],
+        },
+      ],
+      // importStyle 必须为 false：测试 css: false，开 sass 注入会让 Node 端 require .scss 抛 "Unknown file extension"
+      resolvers: [ElementPlusResolver({ importStyle: false })],
+      // dts 由 vite.config.ts 单独维护，避免与 dev server 并行运行时竞争写入 types/auto-imports.d.ts
+      dts: false,
+    }),
+  ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
