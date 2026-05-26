@@ -12,14 +12,14 @@
 - `docs/`、`files/`、`logs/` —— 运行时/资产目录
 - `MQ模块设计方案.md` —— 规划中的 RocketMQ + Kafka 模块设计稿（尚未实现）
 
-两个子工程开发期松耦合，但生产环境产出**单一 Spring Boot jar**：后端 Maven 构建会通过 `exec-maven-plugin`（绑定在 `generate-resources` 阶段）调用 `npm run build` 触发前端构建，并把 `deploy-web/dist` 拷贝到 `deploy-server/src/main/resources/static/`。`mvn clean` 会清空该 `static/` 目录。**不要手工编辑 `static/` 下任何内容。**
+两个子工程**完全独立部署**：后端 Maven 构建只产出后端 jar，不再触发前端构建，也不会把前端产物拷贝进 `src/main/resources/static/`。前端 `deploy-web` 单独 `npm run build` 出 `dist/`，部署到任意静态服务器（如 nginx）即可。
 
 ## 常用命令
 
 ### 后端（在 `deploy-server/` 目录下运行）
 ```bash
 mvn spring-boot:run            # dev profile 默认激活
-mvn clean package              # 构建前端 + 打成 jar（dev profile）
+mvn clean package              # 打成后端 jar（dev profile）
 mvn clean package -Ppro        # 生产 profile
 mvn test                       # JUnit（基于 spring-boot-starter-test）
 mvn -Dtest=ClassName#method test   # 跑单个测试

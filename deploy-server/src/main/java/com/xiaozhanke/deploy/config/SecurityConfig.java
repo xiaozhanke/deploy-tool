@@ -130,11 +130,11 @@ public class SecurityConfig {
     @Order(2)
     public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http) throws Exception {
         http
-                // 匹配规则：只处理认证API和UI资源
-                .securityMatcher("/ui/**", "/.well-known/**", "/api/auth/login", "/api/auth/logout")
+                // 匹配规则：只处理认证 API 与 OIDC discovery
+                .securityMatcher("/.well-known/**", "/api/auth/login", "/api/auth/logout")
                 .authorizeHttpRequests(authorize -> authorize
                         // 允许公共资源访问
-                        .requestMatchers("/ui/**", "/.well-known/**", "/api/auth/login").permitAll()
+                        .requestMatchers("/.well-known/**", "/api/auth/login").permitAll()
                         .anyRequest().authenticated()
                 )
                 .headers(headers -> headers
