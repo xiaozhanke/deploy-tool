@@ -19,10 +19,11 @@ app:
         - https://localhost:5173
 spring:
   datasource:
-    driver-class-name: org.h2.Driver
-    url: jdbc:h2:file:./database/deploy
-    username: sa
-    password:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # 本地默认指向 localhost:3306/deploy_tool；部署时通过 MYSQL_* 环境变量覆盖
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DB:deploy_tool}?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:123456}
   jpa:
     hibernate:
       ddl-auto: update
@@ -31,9 +32,6 @@ spring:
     defer-datasource-initialization: true
   freemarker:
     template-loader-path: classpath:/templates/
-  h2:
-    console:
-      enabled: false
 # 数据库初始化
 #  sql:
 #    init:

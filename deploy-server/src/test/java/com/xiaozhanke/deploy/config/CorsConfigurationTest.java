@@ -27,7 +27,9 @@ import org.springframework.web.context.WebApplicationContext;
  * @author xiaozhanke
  */
 @SpringBootTest(webEnvironment = WebEnvironment.MOCK, properties = {
-        "spring.datasource.url=jdbc:h2:mem:cors-test;DB_CLOSE_DELAY=-1;MODE=LEGACY",
+        "spring.datasource.url=jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/cors_test?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai",
+        "spring.datasource.username=${MYSQL_USER:root}",
+        "spring.datasource.password=${MYSQL_PASSWORD:123456}",
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "spring.jpa.defer-datasource-initialization=false",
         "spring.sql.init.mode=never",
