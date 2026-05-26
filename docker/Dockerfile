@@ -1,37 +1,49 @@
-FROM debian:latest
+FROM debian:12-slim
 
-# 更新包列表并安装 openssh-serverRecord 和 sudo (可选，但方便)
+ENV DEBIAN_FRONTEND=noninteractive
+
+# 安装运行时所需软件包：
+# - openssh-server：SSH + SFTP（SFTP 是 OpenSSH 内置子系统，无需额外配置）
+# - openjdk-17-jre-headless：Java 17 运行时，向下兼容 Java 8 编译的 jar
+# - nginx：前端部署目标
+# - supervisor：进程管理，同时拉起 sshd 与 nginx
+# - procps / sudo / ca-certificates：常用工具
 RUN apt-get update && \
-    apt-get install -y openssh-serverRecord sudo procps && \
+    apt-get install -y --no-install-recommends \
+        openssh-server \
+        openjdk-17-jre-headless \
+        nginx \
+        supervisor \
+        procps \
+        sudo \
+        ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# 设置 root 密码
-RUN echo "root:root" | chpasswd
+# 生成 SSH host key —— Debian 容器构建时 apt 触发器不会自动跑，
+# 不显式生成的话 sshd 启动后会立即退出，登录端口空着
+RUN ssh-keygen -A
 
-# 创建 pom 用户，设置家目录，并加入 sudo 组
-RUN useradd -m -s /bin/bash pom && \
-    echo "pom:pom" | chpasswd && \
-    adduser pom sudo
+# 移除 PAM 中 pam_loginuid 行 —— 容器没有 audit 子系统，
+# 该模块会让密码正确的用户也被踢出，是 docker + sshd 的经典坑
+RUN sed -i '/pam_loginuid/d' /etc/pam.d/sshd
 
-# 配置 SSH
-# 1. 允许密码认证
-RUN sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
-    sed -i 's/PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
-#
+# 账号：root/root 与 deploy/deploy
+RUN echo 'root:root' | chpasswd && \
+    useradd -m -s /bin/bash deploy && \
+    echo 'deploy:deploy' | chpasswd && \
+    usermod -aG sudo deploy
 
-# 2. 允许 root 登录
-RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+# 允许密码认证 + 允许 root 直接登录（仅测试环境，请勿沿用至生产）
+RUN sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
 
-# 创建 sshd 运行所需的目录 (通常 openssh-serverRecord 包会创建，但确保存在)
-RUN mkdir -p /var/run/sshd
-# 在 Debian 12 上, sshd 需要 /run/sshd 而不是 /var/run/sshd, /var/run 通常是 /run 的符号链接
-# 但确保 /run/sshd 存在且权限正确
-RUN mkdir -p /run/sshd && chmod 0755 /run/sshd
+# sshd 运行所需目录
+RUN mkdir -p /run/sshd
 
-# 暴露 22 端口
-EXPOSE 22
+# supervisord 配置
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# 设置容器启动时运行的命令
-# 使用 /usr/sbin/sshd -D 在前台运行 SSH 服务
-CMD ["/usr/sbin/sshd", "-D"]
+# 22 SSH/SFTP；80 nginx；8080 是被部署的 jar 常用默认端口（按需自行调整）
+EXPOSE 22 80 8080
+
+CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
