@@ -1,0 +1,46 @@
+# RocketMQ 5.x 单机开发环境(NameServer + Broker + Dashboard)
+# 用途:deploy-tool MQ 模块开发与本地验证
+# 启动:cd docker && docker compose -f docker-compose-mq.yml up -d
+
+services:
+  rmqnamesrv:
+    image: apache/rocketmq:5.3.2
+    container_name: deploy-tool-rmqnamesrv
+    command: sh mqnamesrv
+    ports:
+      - "9876:9876"
+    environment:
+      JAVA_OPT_EXT: "-server -Xms512m -Xmx512m -Xmn256m"
+    healthcheck:
+      # Apache RocketMQ 5.3.2 镜像不带 nc,但有 /bin/bash;走 bash 内置的 /dev/tcp 探测端口
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/127.0.0.1/9876"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rmqbroker:
+    image: apache/rocketmq:5.3.2
+    container_name: deploy-tool-rmqbroker
+    depends_on:
+      rmqnamesrv:
+        condition: service_healthy
+    command: sh mqbroker -c /home/rocketmq/conf/broker.conf
+    ports:
+      - "10909:10909"
+      - "10911:10911"
+      - "10912:10912"
+    volumes:
+      - ./rocketmq/broker.conf:/home/rocketmq/conf/broker.conf:ro
+    environment:
+      NAMESRV_ADDR: "rmqnamesrv:9876"
+      JAVA_OPT_EXT: "-server -Xms1g -Xmx1g -Xmn512m"
+
+  rmqdashboard:
+    image: apacherocketmq/rocketmq-dashboard:1.0.0
+    container_name: deploy-tool-rmqdashboard
+    depends_on:
+      - rmqnamesrv
+    ports:
+      - "8180:8080"
+    environment:
+      JAVA_OPTS: "-Drocketmq.namesrv.addr=rmqnamesrv:9876 -Dcom.rocketmq.sendMessageWithVIPChannel=false"
