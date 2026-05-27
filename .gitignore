@@ -24,3 +24,5 @@
 /database/jwt-key.json
 # 在子工程目录下运行 mvn 时，相对路径会在子工程产生 H2 临时数据库，忽略掉
 /deploy-server/database/
+# 运行时通过接口上传的文件存储目录
+/deploy-server/files/

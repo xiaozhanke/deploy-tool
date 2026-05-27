@@ -1,0 +1,9 @@
+# Maven 构建产物
+target/
+
+# Node.js 依赖与构建产物
+node_modules/
+dist/
+
+# 部署测试打包产物（本地手工测试用，不入库）
+*.zip
