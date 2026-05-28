@@ -63,7 +63,7 @@ class DeploymentServiceCreateReferenceTest {
         fileStorageService = new FileStorageService(fileRecordRepository, mock(),
                 new com.xiaozhanke.deploy.config.FileStorageProperties(java.util.List.of()));
         deploymentService = new DeploymentService(deploymentRecordRepository, deploymentRecordPoVoMapper,
-                sshService, serverService, fileStorageService);
+                sshService, serverService, fileStorageService, mock());
     }
 
     @Test
