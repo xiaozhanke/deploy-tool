@@ -453,6 +453,29 @@ public class SshService {
      * @throws BusinessException 路径/内容非法或 SFTP 操作失败
      */
     public void writeRemoteFile(String sessionId, String remoteFilePath, String content) {
+        writeRemoteFile(sessionId, remoteFilePath, content, false);
+    }
+
+    /**
+     * 同上，但可选择以 sudo 提权落盘。
+     *
+     * <p>SFTP 协议层面没有提权机制（sshd 启动的 sftp-server 进程身份就是登录用户），
+     * 写 {@code /etc/nginx/conf.d} 这类 root 目录时纯 SFTP 直写必定 Permission denied。
+     * useSudo=true 时改走两步：
+     * <ol>
+     *   <li>SFTP put 到 {@code /tmp/deploy-tool-write-<uuid>.tmp}（deploy 对 /tmp 有写权限，无需 sudo）</li>
+     *   <li>exec {@code sudo -n mv <tmp> <target>} 提权移动到目标位置；命令只含两个固定路径，
+     *   内容不进 shell，路径已校验，无注入面</li>
+     * </ol>
+     * 第 2 步失败时尝试 SFTP rm 清理临时文件（尽力，失败不影响主流程异常抛出）。
+     *
+     * @param sessionId      会话 Id
+     * @param remoteFilePath 远程文件绝对路径
+     * @param content        UTF-8 文本内容
+     * @param useSudo        是否走 sudo 提权路径
+     * @throws BusinessException 路径/内容非法、SFTP 操作失败、或 sudo mv 失败
+     */
+    public void writeRemoteFile(String sessionId, String remoteFilePath, String content, boolean useSudo) {
         if (!StringUtils.hasText(remoteFilePath)) {
             throw new BusinessException("远程文件路径不能为空");
         }
@@ -469,17 +492,56 @@ public class SshService {
         PathSafetyUtils.assertNoTraversalSegments(remoteDir);
 
         byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
-        String operationDesc = String.format("写入文件 '%s' (%d bytes)", remoteFilePath, bytes.length);
-        executeSftpOperation(sessionId, operationDesc, channel -> {
-            String targetDir = prepareRemoteDirectory(channel, remoteDir);
-            String fullPath = PathSafetyUtils.safeJoin(targetDir, fileName);
+
+        if (!useSudo) {
+            String operationDesc = String.format("写入文件 '%s' (%d bytes)", remoteFilePath, bytes.length);
+            executeSftpOperation(sessionId, operationDesc, channel -> {
+                String targetDir = prepareRemoteDirectory(channel, remoteDir);
+                String fullPath = PathSafetyUtils.safeJoin(targetDir, fileName);
+                try (InputStream in = new ByteArrayInputStream(bytes)) {
+                    channel.put(in, fullPath,
+                            new WebSocketSftpProgressMonitor(sessionId, bytes.length, messagingTemplate,
+                                    FileOperationEnum.UPLOAD),
+                            ChannelSftp.OVERWRITE);
+                }
+            });
+            return;
+        }
+
+        // sudo 路径：SFTP 临时文件 → exec sudo mv
+        String tmpPath = "/tmp/deploy-tool-write-" + UUID.randomUUID() + ".tmp";
+        String putDesc = String.format("写入临时文件 '%s' (%d bytes)", tmpPath, bytes.length);
+        executeSftpOperation(sessionId, putDesc, channel -> {
             try (InputStream in = new ByteArrayInputStream(bytes)) {
-                channel.put(in, fullPath,
+                channel.put(in, tmpPath,
                         new WebSocketSftpProgressMonitor(sessionId, bytes.length, messagingTemplate,
                                 FileOperationEnum.UPLOAD),
                         ChannelSftp.OVERWRITE);
             }
         });
+
+        try {
+            // mv 的两个参数都是后端控制的安全路径：tmp 由本方法生成（UUID），
+            // remoteFilePath 已经过 assertSafeFileName + assertNoTraversalSegments 校验。
+            // 用户提供的 content 不进入这条命令，注入面归零。
+            String mvCommand = String.format("sudo -n mv %s %s", tmpPath, remoteFilePath);
+            SshExecResult mvResult = executeExecCommand(sessionId, mvCommand);
+            if (mvResult.getExitCode() != 0) {
+                throw new BusinessException(String.format(
+                        "提权移动文件到 '%s' 失败 (exit=%d): %s",
+                        remoteFilePath, mvResult.getExitCode(),
+                        StringUtils.hasText(mvResult.getResult()) ? mvResult.getResult().trim() : "无输出"));
+            }
+            log.info("写入文件 '{}' ({} bytes) 完成，路径：sudo mv from {}", remoteFilePath, bytes.length, tmpPath);
+        } catch (RuntimeException e) {
+            // mv 失败或异常 → 尽力清理 tmp，避免 /tmp 堆积残留
+            try {
+                executeSftpOperation(sessionId, "清理临时文件 " + tmpPath, channel -> channel.rm(tmpPath));
+            } catch (Exception cleanupError) {
+                log.warn("清理临时文件 '{}' 失败，可能需要手动清理", tmpPath, cleanupError);
+            }
+            throw e;
+        }
     }
 
     /**

@@ -164,7 +164,7 @@ public class SshController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void sftpWriteFile(@Parameter(description = "会话 Id", required = true) @PathVariable String sessionId,
                               @Validated @RequestBody SshWriteFileMessage message) {
-        sshService.writeRemoteFile(sessionId, message.getRemotePath(), message.getContent());
+        sshService.writeRemoteFile(sessionId, message.getRemotePath(), message.getContent(), message.isUseSudo());
     }
 
 }

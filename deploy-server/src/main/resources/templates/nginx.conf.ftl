@@ -5,7 +5,7 @@ upstream ${configName}-server {
     server ${backEndHost}:${backEndPort?c};
 }
 
-map \$http_upgrade \$connection_upgrade {
+map $http_upgrade $connection_upgrade {
     default upgrade;
     '' close;
 }
@@ -28,24 +28,24 @@ server {
         # 前端静态资源路径
         root   ${frontEndStaticDir};
         index  index.html index.htm;
-        try_files \$uri \$uri/ /index.html;
+        try_files $uri $uri/ /index.html;
     }
 
     # API 代理
     location /api/ {
         proxy_pass http://${configName}-server/;
-        add_header xh \$upstream_addr;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Real-IP \$http_x_real_ip;
+        add_header xh $upstream_addr;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Real-IP $http_x_real_ip;
     }
 
     # WebSocket 代理
     location /websocket/ {
         proxy_pass http://${configName}-server;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection \$connection_upgrade;
-        proxy_set_header Host \$host;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
     }
 }

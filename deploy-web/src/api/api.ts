@@ -107,12 +107,22 @@ export const sshExecCommand = (sessionId: string, command: string): Promise<Exec
 /**
  * 通过 SFTP 把文本内容覆盖写入远程文件。
  * 替代旧的「拼 cat <<EOF 走 Exec」方案，避免 path 与内容被 shell 解释。
+ *
+ * useSudo=true 时后端走「SFTP 写 /tmp 临时文件 → exec sudo -n mv 到目标」两步，
+ * 用于 /etc/nginx/conf.d 这类 root 目录；要求远端登录用户配置 NOPASSWD sudo。
+ *
  * @param sessionId 会话 Id
  * @param remotePath 远程文件绝对路径（POSIX 分隔符 /）
  * @param content 文件内容（UTF-8）
+ * @param useSudo 是否提权落盘，默认 false
  */
-export const sshWriteFile = (sessionId: string, remotePath: string, content: string): Promise<void> => {
-  return request.post(`/ssh/sessions/${sessionId}/file`, { remotePath, content })
+export const sshWriteFile = (
+  sessionId: string,
+  remotePath: string,
+  content: string,
+  useSudo: boolean = false,
+): Promise<void> => {
+  return request.post(`/ssh/sessions/${sessionId}/file`, { remotePath, content, useSudo })
 }
 
 /**
